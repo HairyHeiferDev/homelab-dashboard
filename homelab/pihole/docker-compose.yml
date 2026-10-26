@@ -1,0 +1,17 @@
+services:
+  pihole:
+    container_name: pihole
+    image: pihole/pihole:latest
+    network_mode: host
+    environment:
+      TZ: 'America/Toronto'
+      WEBPASSWORD: 'F@irytail8'
+      DNS_LISTENING_MODE: 'all'
+      WEB_PORT: '8080'  # Safely pushes Pi-hole's web admin to port 8080 to avoid WAF port conflicts
+    volumes:
+      - './etc-pihole:/etc/pihole'
+      - './etc-dnsmasq.d:/etc/dnsmasq.d'
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    restart: unless-stopped

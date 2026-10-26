@@ -1,0 +1,49 @@
+services:
+  my-waf:
+    image: bunkerity/bunkerweb:1.5.8
+    container_name: bunkerweb-waf
+    ports:
+      - "192.168.2.12:8081:8080" # <-- This keeps the WAF safe on port 8081
+      - "192.168.2.12:8443:8443"
+    volumes:
+      - bw_data:/data
+    environment:
+      - LOG_LEVEL=info
+      - SERVER_NAME=torrent.home sonarr.home radarr.home prowlarr.home jellyfin.home pihole.home portainer.home
+      - SERVE_FILES=no
+      - USE_REVERSE_PROXY=yes
+      
+      # qBittorrent
+      - torrent.home_REVERSE_PROXY_URL=/
+      - torrent.home_REVERSE_PROXY_HOST=http://192.168.2.12:8080
+      
+      # Sonarr
+      - sonarr.home_REVERSE_PROXY_URL=/
+      - sonarr.home_REVERSE_PROXY_HOST=http://192.168.2.12:8989
+
+      # Radarr
+      - radarr.home_REVERSE_PROXY_URL=/
+      - radarr.home_REVERSE_PROXY_HOST=http://192.168.2.12:7878
+
+      # Prowlarr
+      - prowlarr.home_REVERSE_PROXY_URL=/
+      - prowlarr.home_REVERSE_PROXY_HOST=http://192.168.2.12:9696
+
+      # Jellyfin
+      - jellyfin.home_REVERSE_PROXY_URL=/
+      - jellyfin.home_REVERSE_PROXY_HOST=http://192.168.2.12:8096
+
+      # Pi-hole (The WAF routes TO port 80, but remains listening on 8081)
+      - pihole.home_REVERSE_PROXY_URL=/
+      - pihole.home_REVERSE_PROXY_HOST=http://192.168.2.12:80
+
+      # Portainer
+      - portainer.home_REVERSE_PROXY_URL=/
+      - portainer.home_REVERSE_PROXY_HOST=http://192.168.2.12:9000
+      
+      - USE_MODSECURITY=yes
+      - USE_ANTIBOT=yes
+    restart: always
+
+volumes:
+  bw_data:
