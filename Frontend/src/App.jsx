@@ -1,7 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [metrics, setMetrics] = useState({
+    cpu: 0,
+    ram: { used: 0, total: 16, percent: 0 },
+    disk: { percent: 0 }
+  });
+
+  // Fetch live metrics every 2 seconds
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/metrics');
+        const data = await response.json();
+        setMetrics(data);
+      } catch (error) {
+        console.error("Failed to fetch homelab metrics:", error);
+      }
+    };
+
+    fetchMetrics(); // Initial fetch
+    const interval = setInterval(fetchMetrics, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-950 text-cyan-400 font-mono flex selection:bg-cyan-500 selection:text-slate-950">
@@ -10,7 +32,7 @@ export default function App() {
         <div>
           <div className="flex items-center space-x-3 mb-10">
             <div className="w-3 h-3 bg-cyan-400 rounded-full animate-pulse shadow-[0_0_12px_#22d3ee]"></div>
-            <span className="text-base font-bold tracking-widest text-white">HOMELAB</span>
+            <span className="text-base font-bold tracking-widest text-white">HOMELAB//OS</span>
           </div>
           
           <nav className="space-y-2">
@@ -51,7 +73,7 @@ export default function App() {
           <span>STATUS:</span>
           <span className="text-emerald-400 flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-            SECURE
+            CONNECTED
           </span>
         </div>
       </aside>
@@ -59,43 +81,55 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 p-8 overflow-y-auto bg-gradient-to-br from-slate-950 via-slate-900/40 to-slate-950">
         <header className="flex justify-between items-center mb-8 border-b border-cyan-500/20 pb-4">
-          <h1 className="text-lg font-bold tracking-widest text-white uppercase m-0 leading-tight">
+          <h1 className="text-lg font-bold tracking-widest text-white uppercase m-0">
             {activeTab === 'dashboard' && 'System Resource Telemetry'}
             {activeTab === 'containers' && 'Container Fleet Management'}
             {activeTab === 'terminal' && 'Interactive PTY Shell'}
           </h1>
           <div className="text-xs bg-cyan-950/40 border border-cyan-500/30 px-3 py-1.5 rounded text-cyan-300 tracking-wider shadow-[0_0_10px_rgba(34,211,238,0.05)]">
-            LINUX
+            HOST: LINUX_MINT
           </div>
         </header>
 
         {/* Dynamic Panel Content */}
         {activeTab === 'dashboard' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* CPU Card */}
             <div className="bg-slate-900/50 border border-cyan-500/20 p-6 rounded-lg backdrop-blur shadow-lg relative overflow-hidden group hover:border-cyan-500/40 transition-all">
               <div className="absolute top-0 left-0 w-1 h-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]"></div>
               <h3 className="text-xs text-slate-400 uppercase tracking-widest mb-2">CPU USAGE</h3>
-              <div className="text-3xl font-bold text-white">24.2%</div>
+              <div className="text-3xl font-bold text-white">{metrics.cpu}%</div>
               <div className="w-full bg-slate-800/80 h-1.5 mt-5 rounded-full overflow-hidden">
-                <div className="bg-cyan-400 h-full w-1/4 shadow-[0_0_8px_#22d3ee]"></div>
+                <div 
+                  className="bg-cyan-400 h-full shadow-[0_0_8px_#22d3ee] transition-all duration-500"
+                  style={{ width: `${metrics.cpu}%` }}
+                ></div>
               </div>
             </div>
 
+            {/* RAM Card */}
             <div className="bg-slate-900/50 border border-cyan-500/20 p-6 rounded-lg backdrop-blur shadow-lg relative overflow-hidden group hover:border-cyan-500/40 transition-all">
               <div className="absolute top-0 left-0 w-1 h-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></div>
               <h3 className="text-xs text-slate-400 uppercase tracking-widest mb-2">RAM ALLOCATION</h3>
-              <div className="text-3xl font-bold text-white">7.8 / 16 GB</div>
+              <div className="text-3xl font-bold text-white">{metrics.ram.used} / {metrics.ram.total} GB</div>
               <div className="w-full bg-slate-800/80 h-1.5 mt-5 rounded-full overflow-hidden">
-                <div className="bg-emerald-400 h-full w-1/2 shadow-[0_0_8px_#34d399]"></div>
+                <div 
+                  className="bg-emerald-400 h-full shadow-[0_0_8px_#34d399] transition-all duration-500"
+                  style={{ width: `${metrics.ram.percent}%` }}
+                ></div>
               </div>
             </div>
 
+            {/* Storage Card */}
             <div className="bg-slate-900/50 border border-cyan-500/20 p-6 rounded-lg backdrop-blur shadow-lg relative overflow-hidden group hover:border-cyan-500/40 transition-all">
               <div className="absolute top-0 left-0 w-1 h-full bg-amber-400 shadow-[0_0_8px_#fbbf24]"></div>
-              <h3 className="text-xs text-slate-400 uppercase tracking-widest mb-2">STORAGE / VAR</h3>
-              <div className="text-3xl font-bold text-white">42% USED</div>
+              <h3 className="text-xs text-slate-400 uppercase tracking-widest mb-2">STORAGE / ROOT</h3>
+              <div className="text-3xl font-bold text-white">{metrics.disk.percent}% USED</div>
               <div className="w-full bg-slate-800/80 h-1.5 mt-5 rounded-full overflow-hidden">
-                <div className="bg-amber-400 h-full w-2/5 shadow-[0_0_8px_#fbbf24]"></div>
+                <div 
+                  className="bg-amber-400 h-full shadow-[0_0_8px_#fbbf24] transition-all duration-500"
+                  style={{ width: `${metrics.disk.percent}%` }}
+                ></div>
               </div>
             </div>
           </div>
