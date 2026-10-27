@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Terminal } from 'xterm';
-import { FitAddon } from 'xterm-addon-fit';
-import 'xterm/css/xterm.css';
+import React, { useState, useEffect, useRef } from "react";
+import { Terminal } from "xterm";
+import { FitAddon } from "xterm-addon-fit";
+import "xterm/css/xterm.css";
 
 // --- Embedded Terminal View Component ---
 function TerminalView({ token }) {
@@ -11,15 +11,15 @@ function TerminalView({ token }) {
   useEffect(() => {
     const term = new Terminal({
       cursorBlink: true,
-      cursorStyle: 'block',
+      cursorStyle: "block",
       padding: 12,
       theme: {
-        background: '#020617',
-        foreground: '#22d3ee',
-        cursor: '#22d3ee',
-        selectionBackground: 'rgba(34, 211, 238, 0.3)',
+        background: "#020617",
+        foreground: "#22d3ee",
+        cursor: "#22d3ee",
+        selectionBackground: "rgba(34, 211, 238, 0.3)",
       },
-      fontFamily: 'monospace',
+      fontFamily: "monospace",
       fontSize: 13,
     });
 
@@ -28,7 +28,7 @@ function TerminalView({ token }) {
     term.loadAddon(fitAddon);
 
     term.open(terminalRef.current);
-    
+
     setTimeout(() => {
       fitAddon.fit();
       term.focus();
@@ -49,17 +49,17 @@ function TerminalView({ token }) {
     const handleResize = () => {
       fitAddon.fit();
     };
-    window.addEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener("resize", handleResize);
       ws.close();
       term.dispose();
     };
   }, [token]);
 
   return (
-    <div 
+    <div
       onClick={() => termInstanceRef.current?.focus()}
       className="w-full h-[550px] bg-slate-950 border border-cyan-500/30 rounded-lg shadow-neon-cyan overflow-hidden cursor-text flex items-start justify-start"
     >
@@ -70,29 +70,33 @@ function TerminalView({ token }) {
 
 // --- Main App Component ---
 export default function App() {
-  const [token, setToken] = useState(() => localStorage.getItem('homelab_token') || '');
-  const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('homelab_token'));
-  
-  const [usernameInput, setUsernameInput] = useState('');
-  const [passwordInput, setPasswordInput] = useState('');
-  const [loginError, setLoginError] = useState('');
+  const [token, setToken] = useState(
+    () => localStorage.getItem("homelab_token") || "",
+  );
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    () => !!localStorage.getItem("homelab_token"),
+  );
+
+  const [usernameInput, setUsernameInput] = useState("");
+  const [passwordInput, setPasswordInput] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState("dashboard");
   const [metrics, setMetrics] = useState({
     cpu: 0,
     ram: { used: 0, total: 16, percent: 0 },
-    disk: { percent: 0 }
+    disk: { percent: 0 },
   });
   const [containers, setContainers] = useState([]);
   const [loadingAction, setLoadingAction] = useState(null);
   const [toasts, setToasts] = useState([]);
 
-  const addToast = (message, type = 'info') => {
+  const addToast = (message, type = "info") => {
     const id = Date.now();
-    setToasts(prev => [...prev, { id, message, type }]);
+    setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
+      setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4000);
   };
 
@@ -100,45 +104,48 @@ export default function App() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoggingIn(true);
-    setLoginError('');
+    setLoginError("");
 
     try {
-      const res = await fetch('http://localhost:8000/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: usernameInput, password: passwordInput })
+      const res = await fetch("http://localhost:8000/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: usernameInput,
+          password: passwordInput,
+        }),
       });
 
       const data = await res.json();
 
       if (res.ok && data.success) {
-        localStorage.setItem('homelab_token', data.token);
+        localStorage.setItem("homelab_token", data.token);
         setToken(data.token);
         setIsAuthenticated(true);
-        addToast('Authentication successful. Welcome, Operator.', 'success');
+        addToast("Authentication successful. Welcome, Josh.", "success");
       } else {
-        setLoginError('ACCESS DENIED: Invalid username or password.');
+        setLoginError("ACCESS DENIED: Invalid username or password.");
       }
     } catch (err) {
-      setLoginError('Connection failed. Ensure FastAPI backend is running.');
+      setLoginError("Connection failed. Ensure FastAPI backend is running.");
     } finally {
       setIsLoggingIn(false);
     }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('homelab_token');
-    setToken('');
+    localStorage.removeItem("homelab_token");
+    setToken("");
     setIsAuthenticated(false);
-    setUsernameInput('');
-    setPasswordInput('');
-    addToast('Session terminated.', 'info');
+    setUsernameInput("");
+    setPasswordInput("");
+    addToast("Session terminated.", "info");
   };
 
   const fetchContainers = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/docker/containers', {
-        headers: { 'x-api-key': token }
+      const res = await fetch("http://localhost:8000/api/docker/containers", {
+        headers: { "x-api-key": token },
       });
       const data = await res.json();
       if (Array.isArray(data)) setContainers(data);
@@ -148,7 +155,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (isAuthenticated && activeTab === 'containers') {
+    if (isAuthenticated && activeTab === "containers") {
       fetchContainers();
       const interval = setInterval(fetchContainers, 4000);
       return () => clearInterval(interval);
@@ -157,21 +164,27 @@ export default function App() {
 
   const handleContainerAction = async (id, action) => {
     setLoadingAction(id);
-    addToast(`Executing [${action.toUpperCase()}] on container...`, 'info');
+    addToast(`Executing [${action.toUpperCase()}] on container...`, "info");
     try {
-      const res = await fetch(`http://localhost:8000/api/docker/containers/${id}/${action}`, {
-        method: 'POST',
-        headers: { 'x-api-key': token }
-      });
+      const res = await fetch(
+        `http://localhost:8000/api/docker/containers/${id}/${action}`,
+        {
+          method: "POST",
+          headers: { "x-api-key": token },
+        },
+      );
       const data = await res.json();
       if (data.success) {
-        addToast(`Success: Container '${data.container}' ${action}ed!`, 'success');
+        addToast(
+          `Success: Container '${data.container}' ${action}ed!`,
+          "success",
+        );
       } else {
-        addToast(`Error: ${data.error}`, 'error');
+        addToast(`Error: ${data.error}`, "error");
       }
       await fetchContainers();
     } catch (err) {
-      addToast(`Network error while trying to ${action} container.`, 'error');
+      addToast(`Network error while trying to ${action} container.`, "error");
     } finally {
       setLoadingAction(null);
     }
@@ -182,8 +195,8 @@ export default function App() {
 
     const fetchMetrics = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/metrics', {
-          headers: { 'x-api-key': token }
+        const response = await fetch("http://localhost:8000/api/metrics", {
+          headers: { "x-api-key": token },
         });
         if (response.status === 401) {
           handleLogout();
@@ -210,17 +223,21 @@ export default function App() {
         <div className="w-full max-w-md bg-slate-900/60 border border-cyan-500/40 p-8 rounded-xl backdrop-blur-md shadow-neon-cyan relative z-10">
           <div className="flex items-center space-x-3 mb-6">
             <div className="w-3.5 h-3.5 bg-cyan-400 rounded-full animate-neon-pulse shadow-[0_0_12px_#22d3ee]"></div>
-            <h1 className="text-lg font-bold tracking-widest text-white uppercase">HOMELAB GATEWAY</h1>
+            <h1 className="text-lg font-bold tracking-widest text-white uppercase">
+              HOMELAB GATEWAY
+            </h1>
           </div>
 
           <p className="text-xs text-slate-400 mb-6 leading-relaxed">
-            Enter administrator credentials to initialize uplink to the Linux Mint control plane.
+            Enter administrator credentials.
           </p>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-[10px] uppercase tracking-widest text-slate-400 mb-2">Username</label>
-              <input 
+              <label className="block text-[10px] uppercase tracking-widest text-slate-400 mb-2">
+                Username
+              </label>
+              <input
                 type="text"
                 value={usernameInput}
                 onChange={(e) => setUsernameInput(e.target.value)}
@@ -231,8 +248,10 @@ export default function App() {
             </div>
 
             <div>
-              <label className="block text-[10px] uppercase tracking-widest text-slate-400 mb-2">Password</label>
-              <input 
+              <label className="block text-[10px] uppercase tracking-widest text-slate-400 mb-2">
+                Password
+              </label>
+              <input
                 type="password"
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
@@ -248,12 +267,12 @@ export default function App() {
               </div>
             )}
 
-            <button 
+            <button
               type="submit"
               disabled={isLoggingIn}
               className="w-full bg-cyan-500/10 border border-cyan-500/50 text-cyan-300 py-3 rounded text-xs font-bold tracking-widest hover:bg-cyan-500/20 transition-all shadow-neon-cyan disabled:opacity-50"
             >
-              {isLoggingIn ? 'ESTABLISHING UPLINK...' : 'AUTHENTICATE UPLINK'}
+              {isLoggingIn ? "ESTABLISHING UPLINK..." : "AUTHENTICATE UPLINK"}
             </button>
           </form>
         </div>
@@ -268,36 +287,38 @@ export default function App() {
         <div>
           <div className="flex items-center space-x-3 mb-10">
             <div className="w-3 h-3 bg-cyan-400 rounded-full animate-neon-pulse shadow-[0_0_12px_#22d3ee]"></div>
-            <span className="text-base font-bold tracking-widest text-white">HOMELAB</span>
+            <span className="text-base font-bold tracking-widest text-white">
+              HOMELAB
+            </span>
           </div>
-          
+
           <nav className="space-y-2">
-            <button 
-              onClick={() => setActiveTab('dashboard')}
+            <button
+              onClick={() => setActiveTab("dashboard")}
               className={`w-full text-left px-4 py-3 rounded text-sm transition-all duration-200 tracking-wider ${
-                activeTab === 'dashboard' 
-                  ? 'bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 shadow-neon-cyan' 
-                  : 'hover:bg-slate-800/60 text-slate-400 border border-transparent'
+                activeTab === "dashboard"
+                  ? "bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 shadow-neon-cyan"
+                  : "hover:bg-slate-800/60 text-slate-400 border border-transparent"
               }`}
             >
               &gt; SYSTEM METRICS
             </button>
-            <button 
-              onClick={() => setActiveTab('containers')}
+            <button
+              onClick={() => setActiveTab("containers")}
               className={`w-full text-left px-4 py-3 rounded text-sm transition-all duration-200 tracking-wider ${
-                activeTab === 'containers' 
-                  ? 'bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 shadow-neon-cyan' 
-                  : 'hover:bg-slate-800/60 text-slate-400 border border-transparent'
+                activeTab === "containers"
+                  ? "bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 shadow-neon-cyan"
+                  : "hover:bg-slate-800/60 text-slate-400 border border-transparent"
               }`}
             >
               &gt; SERVER SERVICES STATUS
             </button>
-            <button 
-              onClick={() => setActiveTab('terminal')}
+            <button
+              onClick={() => setActiveTab("terminal")}
               className={`w-full text-left px-4 py-3 rounded text-sm transition-all duration-200 tracking-wider ${
-                activeTab === 'terminal' 
-                  ? 'bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 shadow-neon-cyan' 
-                  : 'hover:bg-slate-800/60 text-slate-400 border border-transparent'
+                activeTab === "terminal"
+                  ? "bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 shadow-neon-cyan"
+                  : "hover:bg-slate-800/60 text-slate-400 border border-transparent"
               }`}
             >
               &gt; TERMINAL
@@ -306,7 +327,7 @@ export default function App() {
         </div>
 
         <div className="space-y-4">
-          <button 
+          <button
             onClick={handleLogout}
             className="w-full text-left px-4 py-2.5 rounded text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 transition-all tracking-wider"
           >
@@ -326,51 +347,74 @@ export default function App() {
       <main className="flex-1 p-8 overflow-y-auto bg-gradient-to-br from-slate-950 via-slate-900/40 to-slate-950">
         <header className="flex justify-between items-center mb-8 border-b border-cyan-500/20 pb-4">
           <h1 className="text-lg font-bold tracking-widest text-white uppercase m-0">
-            {activeTab === 'dashboard' && 'System Resource Telemetry'}
-            {activeTab === 'containers' && 'Container Fleet Management'}
-            {activeTab === 'terminal' && 'Interactive PTY Shell'}
+            {activeTab === "dashboard" && "NEXUS"}
+            {activeTab === "containers" && "SERVICES"}
+            {activeTab === "terminal" && "TERMINAL"}
           </h1>
           <div className="text-xs bg-cyan-950/40 border border-cyan-500/30 px-3 py-1.5 rounded text-cyan-300 tracking-wider shadow-neon-cyan">
-            HOST: LINUX_MINT
+            Linux OS
           </div>
         </header>
 
-        {activeTab === 'dashboard' && (
+        {activeTab === "dashboard" && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-slate-900/50 border border-cyan-500/40 p-6 rounded-lg backdrop-blur shadow-neon-cyan relative overflow-hidden group transition-all">
               <div className="absolute top-0 left-0 w-1 h-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]"></div>
-              <h3 className="text-xs text-slate-400 uppercase tracking-widest mb-2 animate-neon-pulse">CPU USAGE</h3>
-              <div className="text-3xl font-bold text-white">{metrics.cpu}%</div>
+              <h3 className="text-xs text-slate-400 uppercase tracking-widest mb-2 animate-neon-pulse">
+                CPU USAGE
+              </h3>
+              <div className="text-3xl font-bold text-white">
+                {metrics.cpu}%
+              </div>
               <div className="w-full bg-slate-800/80 h-1.5 mt-5 rounded-full overflow-hidden">
-                <div className="bg-cyan-400 h-full shadow-[0_0_8px_#22d3ee] transition-all duration-500" style={{ width: `${metrics.cpu}%` }}></div>
+                <div
+                  className="bg-cyan-400 h-full shadow-[0_0_8px_#22d3ee] transition-all duration-500"
+                  style={{ width: `${metrics.cpu}%` }}
+                ></div>
               </div>
             </div>
 
             <div className="bg-slate-900/50 border border-emerald-500/40 p-6 rounded-lg backdrop-blur shadow-neon-emerald relative overflow-hidden group transition-all">
               <div className="absolute top-0 left-0 w-1 h-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></div>
-              <h3 className="text-xs text-slate-400 uppercase tracking-widest mb-2">RAM ALLOCATION</h3>
-              <div className="text-3xl font-bold text-white">{metrics.ram.used} / {metrics.ram.total} GB</div>
+              <h3 className="text-xs text-slate-400 uppercase tracking-widest mb-2">
+                RAM ALLOCATION
+              </h3>
+              <div className="text-3xl font-bold text-white">
+                {metrics.ram.used} / {metrics.ram.total} GB
+              </div>
               <div className="w-full bg-slate-800/80 h-1.5 mt-5 rounded-full overflow-hidden">
-                <div className="bg-emerald-400 h-full shadow-[0_0_8px_#34d399] transition-all duration-500" style={{ width: `${metrics.ram.percent}%` }}></div>
+                <div
+                  className="bg-emerald-400 h-full shadow-[0_0_8px_#34d399] transition-all duration-500"
+                  style={{ width: `${metrics.ram.percent}%` }}
+                ></div>
               </div>
             </div>
 
             <div className="bg-slate-900/50 border border-amber-500/40 p-6 rounded-lg backdrop-blur shadow-neon-amber relative overflow-hidden group transition-all">
               <div className="absolute top-0 left-0 w-1 h-full bg-amber-400 shadow-[0_0_8px_#fbbf24]"></div>
-              <h3 className="text-xs text-slate-400 uppercase tracking-widest mb-2">STORAGE / ROOT</h3>
-              <div className="text-3xl font-bold text-white">{metrics.disk.percent}% USED</div>
+              <h3 className="text-xs text-slate-400 uppercase tracking-widest mb-2">
+                STORAGE / ROOT
+              </h3>
+              <div className="text-3xl font-bold text-white">
+                {metrics.disk.percent}% USED
+              </div>
               <div className="w-full bg-slate-800/80 h-1.5 mt-5 rounded-full overflow-hidden">
-                <div className="bg-amber-400 h-full shadow-[0_0_8px_#fbbf24] transition-all duration-500" style={{ width: `${metrics.disk.percent}%` }}></div>
+                <div
+                  className="bg-amber-400 h-full shadow-[0_0_8px_#fbbf24] transition-all duration-500"
+                  style={{ width: `${metrics.disk.percent}%` }}
+                ></div>
               </div>
             </div>
           </div>
         )}
 
-        {activeTab === 'containers' && (
+        {activeTab === "containers" && (
           <div className="bg-slate-900/50 border border-cyan-500/40 rounded-lg p-6 backdrop-blur shadow-neon-cyan">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xs text-slate-400 uppercase tracking-widest">Active Container Fleet</h3>
-              <button 
+              <h3 className="text-xs text-slate-400 uppercase tracking-widest">
+                Active Container Fleet
+              </h3>
+              <button
                 onClick={fetchContainers}
                 className="text-xs bg-cyan-950/60 border border-cyan-500/40 px-3 py-1.5 rounded text-cyan-300 hover:bg-cyan-500/20 transition-all shadow-neon-cyan"
               >
@@ -391,53 +435,116 @@ export default function App() {
                 <tbody className="divide-y divide-slate-800/60">
                   {containers.length === 0 ? (
                     <tr>
-                      <td colSpan="4" className="py-6 text-center text-slate-500">Scanning Docker socket or zero containers found...</td>
+                      <td
+                        colSpan="4"
+                        className="py-6 text-center text-slate-500"
+                      >
+                        Scanning Docker socket or zero containers found...
+                      </td>
                     </tr>
                   ) : (
-                    containers.map((c) => (
-                      <tr key={c.id} className="hover:bg-slate-800/30 transition-colors">
-                        <td className="py-4">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider ${
-                            c.status === 'running' 
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-neon-emerald' 
-                              : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
-                          }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${c.status === 'running' ? 'bg-emerald-400 animate-ping' : 'bg-rose-400'}`}></span>
-                            {c.status}
-                          </span>
-                        </td>
-                        <td className="py-4 text-white font-bold tracking-wide">{c.name}</td>
-                        <td className="py-4 text-slate-400 font-mono">{c.image}</td>
-                        <td className="py-4 text-right space-x-2">
-                          {c.status === 'running' ? (
-                            <>
-                              <button 
-                                disabled={loadingAction === c.id}
-                                onClick={() => handleContainerAction(c.id, 'restart')}
-                                className="px-3 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded hover:bg-amber-500/20 transition-all disabled:opacity-50"
-                              >
-                                RESTART
-                              </button>
-                              <button 
-                                disabled={loadingAction === c.id}
-                                onClick={() => handleContainerAction(c.id, 'stop')}
-                                className="px-3 py-1 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded hover:bg-rose-500/20 transition-all disabled:opacity-50"
-                              >
-                                STOP
-                              </button>
-                            </>
-                          ) : (
-                            <button 
-                              disabled={loadingAction === c.id}
-                              onClick={() => handleContainerAction(c.id, 'start')}
-                              className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded hover:bg-emerald-500/20 transition-all disabled:opacity-50"
+                    containers.map((c) => {
+                      const name = c.name.toLowerCase();
+                      let port = c.port;
+                      let subPath = '';
+
+                      // Fallback standard ports if Docker didn't expose one explicitly
+                      if (!port) {
+                        if (name.includes('pihole') || name.includes('pi-hole')) port = '80';
+                        else if (name.includes('qbit')) port = '8080';
+                        else if (name.includes('prowlarr') || name.includes('prowellr')) port = '9696';
+                        else if (name.includes('bunker')) port = '80';
+                        else if (name.includes('jellyfin')) port = '8096';
+                        else if (name.includes('sonarr')) port = '8989';
+                        else if (name.includes('radarr')) port = '7878';
+                      }
+
+                      // Specific subpaths
+                      if (name.includes('pihole') || name.includes('pi-hole')) {
+                        subPath = '/admin/';
+                      }
+
+                      const serviceUrl = port ? `http://homelab.local:${port}${subPath}` : null;
+
+                      return (
+                        <tr key={c.id} className="hover:bg-slate-800/30 transition-colors">
+                          <td className="py-4">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider ${
+                                c.status === "running"
+                                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-neon-emerald"
+                                  : "bg-rose-500/10 text-rose-400 border border-rose-500/30"
+                              }`}
                             >
-                              START
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  c.status === "running"
+                                    ? "bg-emerald-400 animate-ping"
+                                    : "bg-rose-400"
+                                }`}
+                              ></span>
+                              {c.status}
+                            </span>
+                          </td>
+                          <td className="py-4">
+                            {serviceUrl && c.status === "running" ? (
+                              <a
+                                href={serviceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-cyan-300 font-bold tracking-wide hover:text-white hover:underline flex items-center gap-1.5 group w-fit"
+                              >
+                                {c.name}
+                                <span className="text-[10px] opacity-60 group-hover:opacity-100">
+                                  ↗
+                                </span>
+                              </a>
+                            ) : (
+                              <span className="text-white font-bold tracking-wide">
+                                {c.name}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-4 text-slate-400 font-mono">
+                            {c.image}
+                          </td>
+                          <td className="py-4 text-right space-x-2">
+                            {c.status === "running" ? (
+                              <>
+                                <button
+                                  disabled={loadingAction === c.id}
+                                  onClick={() =>
+                                    handleContainerAction(c.id, "restart")
+                                  }
+                                  className="px-3 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded hover:bg-amber-500/20 transition-all disabled:opacity-50"
+                                >
+                                  RESTART
+                                </button>
+                                <button
+                                  disabled={loadingAction === c.id}
+                                  onClick={() =>
+                                    handleContainerAction(c.id, "stop")
+                                  }
+                                  className="px-3 py-1 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded hover:bg-rose-500/20 transition-all disabled:opacity-50"
+                                >
+                                  STOP
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                disabled={loadingAction === c.id}
+                                onClick={() =>
+                                  handleContainerAction(c.id, "start")
+                                }
+                                className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded hover:bg-emerald-500/20 transition-all disabled:opacity-50"
+                              >
+                                START
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -445,24 +552,30 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === 'terminal' && <TerminalView token={token} />}
+        {activeTab === "terminal" && <TerminalView token={token} />}
       </main>
 
       <div className="fixed bottom-6 right-6 z-50 space-y-3 pointer-events-none">
-        {toasts.map(toast => (
-          <div 
-            key={toast.id} 
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
             className={`pointer-events-auto px-4 py-3 rounded-lg backdrop-blur-md text-xs tracking-wider flex items-center space-x-3 transition-all shadow-lg border ${
-              toast.type === 'success' 
-                ? 'bg-slate-900/90 border-emerald-500/40 text-emerald-300 shadow-neon-emerald' 
-                : toast.type === 'error'
-                ? 'bg-slate-900/90 border-rose-500/40 text-rose-300 shadow-[0_0_15px_rgba(244,63,94,0.3)]'
-                : 'bg-slate-900/90 border-cyan-500/40 text-cyan-300 shadow-neon-cyan'
+              toast.type === "success"
+                ? "bg-slate-900/90 border-emerald-500/40 text-emerald-300 shadow-neon-emerald"
+                : toast.type === "error"
+                  ? "bg-slate-900/90 border-rose-500/40 text-rose-300 shadow-[0_0_15px_rgba(244,63,94,0.3)]"
+                  : "bg-slate-900/90 border-cyan-500/40 text-cyan-300 shadow-neon-cyan"
             }`}
           >
-            <span className={`w-2 h-2 rounded-full ${
-              toast.type === 'success' ? 'bg-emerald-400 animate-ping' : toast.type === 'error' ? 'bg-rose-400 animate-ping' : 'bg-cyan-400 animate-pulse'
-            }`}></span>
+            <span
+              className={`w-2 h-2 rounded-full ${
+                toast.type === "success"
+                  ? "bg-emerald-400 animate-ping"
+                  : toast.type === "error"
+                    ? "bg-rose-400 animate-ping"
+                    : "bg-cyan-400 animate-pulse"
+              }`}
+            ></span>
             <span>{toast.message}</span>
           </div>
         ))}

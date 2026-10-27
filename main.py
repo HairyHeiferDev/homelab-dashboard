@@ -21,7 +21,7 @@ app = FastAPI(title="Homelab Dashboard")
 # CORS middleware allowing frontend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://homelab.local:5173","http://homelab.local"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -70,6 +70,8 @@ try:
 except Exception:
     docker_client = None
 
+
+    
 @app.get("/api/docker/containers")
 def list_containers(x_api_key: str = Header(None)):
     verify_token(x_api_key)
@@ -77,35 +79,43 @@ def list_containers(x_api_key: str = Header(None)):
         return []
     try:
         containers = docker_client.containers.list(all=True)
-        return [
-            {
+        container_list = []
+        
+        # Common homelab port fallback map
+        default_ports = {
+            "jellyfin": "8096",
+            "sonarr": "8989",
+            "radarr": "7878",
+            "prowlarr": "9696",
+            "qbittorrent": "8080",
+            "pihole": "80"
+        }
+
+        for c in containers:
+            ports = c.attrs.get('NetworkSettings', {}).get('Ports', {})
+            public_port = None
+            if ports:
+                for container_port, host_bindings in ports.items():
+                    if host_bindings:
+                        public_port = host_bindings[0].get('HostPort')
+                        break
+            
+            # If no port found, check our fallback dictionary by container name
+            if not public_port:
+                for name_key, port_val in default_ports.items():
+                    if name_key in c.name.lower():
+                        public_port = port_val
+                        break
+
+            container_list.append({
                 "id": c.short_id,
                 "name": c.name,
                 "image": c.image.tags[0] if c.image.tags else "custom-build",
                 "status": c.status,
+                "port": public_port,
                 "created": c.attrs['Created']
-            }
-            for c in containers
-        ]
-    except Exception as e:
-        return {"error": str(e)}
-
-@app.post("/api/docker/containers/{container_id}/{action}")
-def control_container(container_id: str, action: str, x_api_key: str = Header(None)):
-    verify_token(x_api_key)
-    if not docker_client:
-        return {"error": "Docker socket unavailable"}
-    try:
-        container = docker_client.containers.get(container_id)
-        if action == "start":
-            container.start()
-        elif action == "stop":
-            container.stop()
-        elif action == "restart":
-            container.restart()
-        else:
-            return {"error": "Invalid action"}
-        return {"success": True, "container": container.name, "action": action}
+            })
+        return container_list
     except Exception as e:
         return {"error": str(e)}
 
