@@ -5,6 +5,7 @@ import pty
 import subprocess
 import asyncio
 import os
+import traceback
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import WebSocket, WebSocketDisconnect
@@ -82,8 +83,14 @@ def control_container(container_id: str, action: str):
 @app.websocket("/ws/terminal")
 async def terminal_websocket(websocket: WebSocket):
     await websocket.accept()
+    print("WebSocket connection accepted from frontend.")
     
-    master_fd, slave_fd = pty.openpty()
+    try:
+        master_fd, slave_fd = pty.openpty()
+    except Exception as e:
+        print(f"Failed to open PTY: {e}")
+        await websocket.close()
+        return
     
     try:
         proc = subprocess.Popen(
@@ -93,7 +100,10 @@ async def terminal_websocket(websocket: WebSocket):
             stderr=slave_fd,
             preexec_fn=os.setsid
         )
-    except Exception:
+        print("Bash subprocess spawned successfully.")
+    except Exception as e:
+        print(f"Failed to spawn bash subprocess: {e}")
+        traceback.print_exc()
         os.close(master_fd)
         os.close(slave_fd)
         await websocket.close()
@@ -109,8 +119,8 @@ async def terminal_websocket(websocket: WebSocket):
                 if not data:
                     break
                 await websocket.send_text(data.decode('utf-8', errors='ignore'))
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error reading from PTY: {e}")
 
     read_task = asyncio.create_task(read_from_pty())
 
@@ -119,7 +129,9 @@ async def terminal_websocket(websocket: WebSocket):
             data = await websocket.receive_text()
             await loop.run_in_executor(None, os.write, master_fd, data.encode('utf-8'))
     except WebSocketDisconnect:
-        pass
+        print("WebSocket disconnected by client.")
+    except Exception as e:
+        print(f"WebSocket receive error: {e}")
     finally:
         read_task.cancel()
         try:

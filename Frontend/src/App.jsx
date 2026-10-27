@@ -1,6 +1,74 @@
-import React, { useState, useEffect } from 'react';
-import TerminalView from './TerminalView';
+import React, { useState, useEffect, useRef } from 'react';
+import { Terminal } from 'xterm';
+import { FitAddon } from 'xterm-addon-fit';
+import 'xterm/css/xterm.css';
 
+// --- Embedded Terminal View Component ---
+function TerminalView() {
+  const terminalRef = useRef(null);
+  const termInstanceRef = useRef(null);
+
+  useEffect(() => {
+    const term = new Terminal({
+      cursorBlink: true,
+      cursorStyle: 'block',
+      padding: 12,
+      theme: {
+        background: '#020617', // slate-950
+        foreground: '#22d3ee', // cyan-400
+        cursor: '#22d3ee',
+        selectionBackground: 'rgba(34, 211, 238, 0.3)',
+      },
+      fontFamily: 'monospace',
+      fontSize: 13,
+    });
+
+    termInstanceRef.current = term;
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
+
+    term.open(terminalRef.current);
+    
+    setTimeout(() => {
+      fitAddon.fit();
+      term.focus();
+    }, 150);
+
+    const ws = new WebSocket('ws://localhost:8000/ws/terminal');
+
+    ws.onmessage = (event) => {
+      term.write(event.data);
+    };
+
+    term.onData((data) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(data);
+      }
+    });
+
+    const handleResize = () => {
+      fitAddon.fit();
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      ws.close();
+      term.dispose();
+    };
+  }, []);
+
+  return (
+    <div 
+      onClick={() => termInstanceRef.current?.focus()}
+      className="w-full h-[550px] bg-slate-950 border border-cyan-500/30 rounded-lg shadow-neon-cyan overflow-hidden cursor-text flex items-start justify-start"
+    >
+      <div ref={terminalRef} className="w-full h-full" />
+    </div>
+  );
+}
+
+// --- Main App Component ---
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [metrics, setMetrics] = useState({
@@ -43,7 +111,6 @@ export default function App() {
     }
   };
 
-  // Fetch live metrics every 2 seconds
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
@@ -55,18 +122,18 @@ export default function App() {
       }
     };
 
-    fetchMetrics(); // Initial fetch
+    fetchMetrics();
     const interval = setInterval(fetchMetrics, 2000);
     return () => clearInterval(interval);
   }, []);
 
   return (
     <div className="min-h-screen bg-slate-950 text-cyan-400 font-mono flex selection:bg-cyan-500 selection:text-slate-950">
-      {/* Sidebar Navigation */}
+      {/* Sidebar */}
       <aside className="w-64 border-r border-cyan-500/20 bg-slate-900/40 p-6 flex flex-col justify-between backdrop-blur-md">
         <div>
           <div className="flex items-center space-x-3 mb-10">
-            <div className="w-3 h-3 bg-cyan-400 rounded-full animate-pulse shadow-[0_0_12px_#22d3ee]"></div>
+            <div className="w-3 h-3 bg-cyan-400 rounded-full animate-neon-pulse shadow-[0_0_12px_#22d3ee]"></div>
             <span className="text-base font-bold tracking-widest text-white">HOMELAB</span>
           </div>
           
@@ -75,7 +142,7 @@ export default function App() {
               onClick={() => setActiveTab('dashboard')}
               className={`w-full text-left px-4 py-3 rounded text-sm transition-all duration-200 tracking-wider ${
                 activeTab === 'dashboard' 
-                  ? 'bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 shadow-[0_0_15px_rgba(34,211,238,0.15)]' 
+                  ? 'bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 shadow-neon-cyan' 
                   : 'hover:bg-slate-800/60 text-slate-400 border border-transparent'
               }`}
             >
@@ -85,7 +152,7 @@ export default function App() {
               onClick={() => setActiveTab('containers')}
               className={`w-full text-left px-4 py-3 rounded text-sm transition-all duration-200 tracking-wider ${
                 activeTab === 'containers' 
-                  ? 'bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 shadow-[0_0_15px_rgba(34,211,238,0.15)]' 
+                  ? 'bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 shadow-neon-cyan' 
                   : 'hover:bg-slate-800/60 text-slate-400 border border-transparent'
               }`}
             >
@@ -95,7 +162,7 @@ export default function App() {
               onClick={() => setActiveTab('terminal')}
               className={`w-full text-left px-4 py-3 rounded text-sm transition-all duration-200 tracking-wider ${
                 activeTab === 'terminal' 
-                  ? 'bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 shadow-[0_0_15px_rgba(34,211,238,0.15)]' 
+                  ? 'bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 shadow-neon-cyan' 
                   : 'hover:bg-slate-800/60 text-slate-400 border border-transparent'
               }`}
             >
@@ -121,62 +188,49 @@ export default function App() {
             {activeTab === 'containers' && 'Container Fleet Management'}
             {activeTab === 'terminal' && 'Interactive PTY Shell'}
           </h1>
-          <div className="text-xs bg-cyan-950/40 border border-cyan-500/30 px-3 py-1.5 rounded text-cyan-300 tracking-wider shadow-[0_0_10px_rgba(34,211,238,0.05)]">
+          <div className="text-xs bg-cyan-950/40 border border-cyan-500/30 px-3 py-1.5 rounded text-cyan-300 tracking-wider shadow-neon-cyan">
             HOST: LINUX_MINT
           </div>
         </header>
 
-        {/* Dynamic Panel Content */}
         {activeTab === 'dashboard' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* CPU Card */}
-            <div className="bg-slate-900/50 border border-cyan-500/20 p-6 rounded-lg backdrop-blur shadow-lg relative overflow-hidden group hover:border-cyan-500/40 transition-all">
+            <div className="bg-slate-900/50 border border-cyan-500/40 p-6 rounded-lg backdrop-blur shadow-neon-cyan relative overflow-hidden group transition-all">
               <div className="absolute top-0 left-0 w-1 h-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]"></div>
-              <h3 className="text-xs text-slate-400 uppercase tracking-widest mb-2">CPU USAGE</h3>
+              <h3 className="text-xs text-slate-400 uppercase tracking-widest mb-2 animate-neon-pulse">CPU USAGE</h3>
               <div className="text-3xl font-bold text-white">{metrics.cpu}%</div>
               <div className="w-full bg-slate-800/80 h-1.5 mt-5 rounded-full overflow-hidden">
-                <div 
-                  className="bg-cyan-400 h-full shadow-[0_0_8px_#22d3ee] transition-all duration-500"
-                  style={{ width: `${metrics.cpu}%` }}
-                ></div>
+                <div className="bg-cyan-400 h-full shadow-[0_0_8px_#22d3ee] transition-all duration-500" style={{ width: `${metrics.cpu}%` }}></div>
               </div>
             </div>
 
-            {/* RAM Card */}
-            <div className="bg-slate-900/50 border border-cyan-500/20 p-6 rounded-lg backdrop-blur shadow-lg relative overflow-hidden group hover:border-cyan-500/40 transition-all">
+            <div className="bg-slate-900/50 border border-emerald-500/40 p-6 rounded-lg backdrop-blur shadow-neon-emerald relative overflow-hidden group transition-all">
               <div className="absolute top-0 left-0 w-1 h-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></div>
               <h3 className="text-xs text-slate-400 uppercase tracking-widest mb-2">RAM ALLOCATION</h3>
               <div className="text-3xl font-bold text-white">{metrics.ram.used} / {metrics.ram.total} GB</div>
               <div className="w-full bg-slate-800/80 h-1.5 mt-5 rounded-full overflow-hidden">
-                <div 
-                  className="bg-emerald-400 h-full shadow-[0_0_8px_#34d399] transition-all duration-500"
-                  style={{ width: `${metrics.ram.percent}%` }}
-                ></div>
+                <div className="bg-emerald-400 h-full shadow-[0_0_8px_#34d399] transition-all duration-500" style={{ width: `${metrics.ram.percent}%` }}></div>
               </div>
             </div>
 
-            {/* Storage Card */}
-            <div className="bg-slate-900/50 border border-cyan-500/20 p-6 rounded-lg backdrop-blur shadow-lg relative overflow-hidden group hover:border-cyan-500/40 transition-all">
+            <div className="bg-slate-900/50 border border-amber-500/40 p-6 rounded-lg backdrop-blur shadow-neon-amber relative overflow-hidden group transition-all">
               <div className="absolute top-0 left-0 w-1 h-full bg-amber-400 shadow-[0_0_8px_#fbbf24]"></div>
               <h3 className="text-xs text-slate-400 uppercase tracking-widest mb-2">STORAGE / ROOT</h3>
               <div className="text-3xl font-bold text-white">{metrics.disk.percent}% USED</div>
               <div className="w-full bg-slate-800/80 h-1.5 mt-5 rounded-full overflow-hidden">
-                <div 
-                  className="bg-amber-400 h-full shadow-[0_0_8px_#fbbf24] transition-all duration-500"
-                  style={{ width: `${metrics.disk.percent}%` }}
-                ></div>
+                <div className="bg-amber-400 h-full shadow-[0_0_8px_#fbbf24] transition-all duration-500" style={{ width: `${metrics.disk.percent}%` }}></div>
               </div>
             </div>
           </div>
         )}
 
         {activeTab === 'containers' && (
-          <div className="bg-slate-900/50 border border-cyan-500/20 rounded-lg p-6 backdrop-blur shadow-lg">
+          <div className="bg-slate-900/50 border border-cyan-500/40 rounded-lg p-6 backdrop-blur shadow-neon-cyan">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xs text-slate-400 uppercase tracking-widest">Active Container Fleet</h3>
               <button 
                 onClick={fetchContainers}
-                className="text-xs bg-cyan-950/60 border border-cyan-500/40 px-3 py-1.5 rounded text-cyan-300 hover:bg-cyan-500/20 transition-all"
+                className="text-xs bg-cyan-950/60 border border-cyan-500/40 px-3 py-1.5 rounded text-cyan-300 hover:bg-cyan-500/20 transition-all shadow-neon-cyan"
               >
                 REFRESH FLEET
               </button>
@@ -203,10 +257,10 @@ export default function App() {
                         <td className="py-4">
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider ${
                             c.status === 'running' 
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-[0_0_10px_rgba(52,211,153,0.1)]' 
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-neon-emerald' 
                               : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
                           }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${c.status === 'running' ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`}></span>
+                            <span className={`w-1.5 h-1.5 rounded-full ${c.status === 'running' ? 'bg-emerald-400 animate-ping' : 'bg-rose-400'}`}></span>
                             {c.status}
                           </span>
                         </td>
@@ -249,9 +303,7 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === 'terminal' && (
-          <TerminalView />
-        )}
+        {activeTab === 'terminal' && <TerminalView />}
       </main>
     </div>
   );
