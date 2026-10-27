@@ -4,7 +4,7 @@ import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 
 // --- Embedded Terminal View Component ---
-function TerminalView() {
+function TerminalView({ token }) {
   const terminalRef = useRef(null);
   const termInstanceRef = useRef(null);
 
@@ -14,8 +14,8 @@ function TerminalView() {
       cursorStyle: 'block',
       padding: 12,
       theme: {
-        background: '#020617', // slate-950
-        foreground: '#22d3ee', // cyan-400
+        background: '#020617',
+        foreground: '#22d3ee',
         cursor: '#22d3ee',
         selectionBackground: 'rgba(34, 211, 238, 0.3)',
       },
@@ -34,7 +34,7 @@ function TerminalView() {
       term.focus();
     }, 150);
 
-    const ws = new WebSocket('ws://localhost:8000/ws/terminal');
+    const ws = new WebSocket(`ws://localhost:8000/ws/terminal?token=${token}`);
 
     ws.onmessage = (event) => {
       term.write(event.data);
@@ -56,7 +56,7 @@ function TerminalView() {
       ws.close();
       term.dispose();
     };
-  }, []);
+  }, [token]);
 
   return (
     <div 
@@ -70,6 +70,14 @@ function TerminalView() {
 
 // --- Main App Component ---
 export default function App() {
+  const [token, setToken] = useState(() => localStorage.getItem('homelab_token') || '');
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('homelab_token'));
+  
+  const [usernameInput, setUsernameInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const [metrics, setMetrics] = useState({
     cpu: 0,
@@ -78,10 +86,60 @@ export default function App() {
   });
   const [containers, setContainers] = useState([]);
   const [loadingAction, setLoadingAction] = useState(null);
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = (message, type = 'info') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4000);
+  };
+
+  // Handle Login with Username & Password
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setIsLoggingIn(true);
+    setLoginError('');
+
+    try {
+      const res = await fetch('http://localhost:8000/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: usernameInput, password: passwordInput })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        localStorage.setItem('homelab_token', data.token);
+        setToken(data.token);
+        setIsAuthenticated(true);
+        addToast('Authentication successful. Welcome, Operator.', 'success');
+      } else {
+        setLoginError('ACCESS DENIED: Invalid username or password.');
+      }
+    } catch (err) {
+      setLoginError('Connection failed. Ensure FastAPI backend is running.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('homelab_token');
+    setToken('');
+    setIsAuthenticated(false);
+    setUsernameInput('');
+    setPasswordInput('');
+    addToast('Session terminated.', 'info');
+  };
 
   const fetchContainers = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/docker/containers');
+      const res = await fetch('http://localhost:8000/api/docker/containers', {
+        headers: { 'x-api-key': token }
+      });
       const data = await res.json();
       if (Array.isArray(data)) setContainers(data);
     } catch (err) {
@@ -90,31 +148,47 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (activeTab === 'containers') {
+    if (isAuthenticated && activeTab === 'containers') {
       fetchContainers();
       const interval = setInterval(fetchContainers, 4000);
       return () => clearInterval(interval);
     }
-  }, [activeTab]);
+  }, [isAuthenticated, activeTab]);
 
   const handleContainerAction = async (id, action) => {
     setLoadingAction(id);
+    addToast(`Executing [${action.toUpperCase()}] on container...`, 'info');
     try {
-      await fetch(`http://localhost:8000/api/docker/containers/${id}/${action}`, {
+      const res = await fetch(`http://localhost:8000/api/docker/containers/${id}/${action}`, {
         method: 'POST',
+        headers: { 'x-api-key': token }
       });
+      const data = await res.json();
+      if (data.success) {
+        addToast(`Success: Container '${data.container}' ${action}ed!`, 'success');
+      } else {
+        addToast(`Error: ${data.error}`, 'error');
+      }
       await fetchContainers();
     } catch (err) {
-      console.error(`Failed to ${action} container:`, err);
+      addToast(`Network error while trying to ${action} container.`, 'error');
     } finally {
       setLoadingAction(null);
     }
   };
 
   useEffect(() => {
+    if (!isAuthenticated) return;
+
     const fetchMetrics = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/metrics');
+        const response = await fetch('http://localhost:8000/api/metrics', {
+          headers: { 'x-api-key': token }
+        });
+        if (response.status === 401) {
+          handleLogout();
+          return;
+        }
         const data = await response.json();
         setMetrics(data);
       } catch (error) {
@@ -125,11 +199,71 @@ export default function App() {
     fetchMetrics();
     const interval = setInterval(fetchMetrics, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isAuthenticated, token]);
 
+  // --- Render Login Screen ---
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-cyan-400 font-mono flex items-center justify-center p-6 selection:bg-cyan-500 selection:text-slate-950 relative overflow-hidden">
+        <div className="absolute w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+        <div className="w-full max-w-md bg-slate-900/60 border border-cyan-500/40 p-8 rounded-xl backdrop-blur-md shadow-neon-cyan relative z-10">
+          <div className="flex items-center space-x-3 mb-6">
+            <div className="w-3.5 h-3.5 bg-cyan-400 rounded-full animate-neon-pulse shadow-[0_0_12px_#22d3ee]"></div>
+            <h1 className="text-lg font-bold tracking-widest text-white uppercase">HOMELAB GATEWAY</h1>
+          </div>
+
+          <p className="text-xs text-slate-400 mb-6 leading-relaxed">
+            Enter administrator credentials to initialize uplink to the Linux Mint control plane.
+          </p>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-[10px] uppercase tracking-widest text-slate-400 mb-2">Username</label>
+              <input 
+                type="text"
+                value={usernameInput}
+                onChange={(e) => setUsernameInput(e.target.value)}
+                placeholder="Enter username..."
+                className="w-full bg-slate-950 border border-cyan-500/30 rounded px-4 py-3 text-xs text-white focus:outline-none focus:border-cyan-400 transition-all shadow-inner"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] uppercase tracking-widest text-slate-400 mb-2">Password</label>
+              <input 
+                type="password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="Enter password..."
+                className="w-full bg-slate-950 border border-cyan-500/30 rounded px-4 py-3 text-xs text-white focus:outline-none focus:border-cyan-400 transition-all shadow-inner"
+                required
+              />
+            </div>
+
+            {loginError && (
+              <div className="text-[11px] text-rose-400 bg-rose-500/10 border border-rose-500/30 p-2.5 rounded tracking-wide">
+                {loginError}
+              </div>
+            )}
+
+            <button 
+              type="submit"
+              disabled={isLoggingIn}
+              className="w-full bg-cyan-500/10 border border-cyan-500/50 text-cyan-300 py-3 rounded text-xs font-bold tracking-widest hover:bg-cyan-500/20 transition-all shadow-neon-cyan disabled:opacity-50"
+            >
+              {isLoggingIn ? 'ESTABLISHING UPLINK...' : 'AUTHENTICATE UPLINK'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Render Main Dashboard ---
   return (
-    <div className="min-h-screen bg-slate-950 text-cyan-400 font-mono flex selection:bg-cyan-500 selection:text-slate-950">
-      {/* Sidebar */}
+    <div className="min-h-screen bg-slate-950 text-cyan-400 font-mono flex selection:bg-cyan-500 selection:text-slate-950 relative">
       <aside className="w-64 border-r border-cyan-500/20 bg-slate-900/40 p-6 flex flex-col justify-between backdrop-blur-md">
         <div>
           <div className="flex items-center space-x-3 mb-10">
@@ -171,16 +305,24 @@ export default function App() {
           </nav>
         </div>
 
-        <div className="text-xs text-slate-500 border-t border-slate-800/80 pt-4 flex items-center justify-between">
-          <span>STATUS:</span>
-          <span className="text-emerald-400 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-            CONNECTED
-          </span>
+        <div className="space-y-4">
+          <button 
+            onClick={handleLogout}
+            className="w-full text-left px-4 py-2.5 rounded text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 transition-all tracking-wider"
+          >
+            &gt; TERMINATE SESSION
+          </button>
+
+          <div className="text-xs text-slate-500 border-t border-slate-800/80 pt-4 flex items-center justify-between">
+            <span>STATUS:</span>
+            <span className="text-emerald-400 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+              SECURE
+            </span>
+          </div>
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <main className="flex-1 p-8 overflow-y-auto bg-gradient-to-br from-slate-950 via-slate-900/40 to-slate-950">
         <header className="flex justify-between items-center mb-8 border-b border-cyan-500/20 pb-4">
           <h1 className="text-lg font-bold tracking-widest text-white uppercase m-0">
@@ -303,8 +445,28 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === 'terminal' && <TerminalView />}
+        {activeTab === 'terminal' && <TerminalView token={token} />}
       </main>
+
+      <div className="fixed bottom-6 right-6 z-50 space-y-3 pointer-events-none">
+        {toasts.map(toast => (
+          <div 
+            key={toast.id} 
+            className={`pointer-events-auto px-4 py-3 rounded-lg backdrop-blur-md text-xs tracking-wider flex items-center space-x-3 transition-all shadow-lg border ${
+              toast.type === 'success' 
+                ? 'bg-slate-900/90 border-emerald-500/40 text-emerald-300 shadow-neon-emerald' 
+                : toast.type === 'error'
+                ? 'bg-slate-900/90 border-rose-500/40 text-rose-300 shadow-[0_0_15px_rgba(244,63,94,0.3)]'
+                : 'bg-slate-900/90 border-cyan-500/40 text-cyan-300 shadow-neon-cyan'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${
+              toast.type === 'success' ? 'bg-emerald-400 animate-ping' : toast.type === 'error' ? 'bg-rose-400 animate-ping' : 'bg-cyan-400 animate-pulse'
+            }`}></span>
+            <span>{toast.message}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

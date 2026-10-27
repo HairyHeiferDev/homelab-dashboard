@@ -1,0 +1,13 @@
+# Environment files (Never commit secrets!)
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+env/
+
+# Node & Vite
+node_modules/
+dist/
+.DS_Store

@@ -6,23 +6,50 @@ import subprocess
 import asyncio
 import os
 import traceback
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import WebSocket, WebSocketDisconnect
+from dotenv import load_dotenv
+
+load_dotenv("passwords.env")
+SECRET_TOKEN = os.getenv("SECRET_TOKEN")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+
 
 app = FastAPI(title="Homelab Dashboard")
 
-# allows fast api to talk to port 5173 
+# CORS middleware allowing frontend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+@app.post("/api/login")
+def login(credentials: dict):
+    username = credentials.get("username")
+    password = credentials.get("password")
+    
+    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        return {"success": True, "token": SECRET_TOKEN}
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password"
+        )
+
+def verify_token(x_api_key: str = Header(None)):
+    if x_api_key != SECRET_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API key"
+        )
+
 @app.get("/api/metrics")
-def get_system_metrics():
+def get_system_metrics(x_api_key: str = Header(None)):
+    verify_token(x_api_key)
     cpu_usage = psutil.cpu_percent(interval=None)
     memory = psutil.virtual_memory()
     disk = psutil.disk_usage('/')
@@ -44,7 +71,8 @@ except Exception:
     docker_client = None
 
 @app.get("/api/docker/containers")
-def list_containers():
+def list_containers(x_api_key: str = Header(None)):
+    verify_token(x_api_key)
     if not docker_client:
         return []
     try:
@@ -63,7 +91,8 @@ def list_containers():
         return {"error": str(e)}
 
 @app.post("/api/docker/containers/{container_id}/{action}")
-def control_container(container_id: str, action: str):
+def control_container(container_id: str, action: str, x_api_key: str = Header(None)):
+    verify_token(x_api_key)
     if not docker_client:
         return {"error": "Docker socket unavailable"}
     try:
@@ -82,6 +111,12 @@ def control_container(container_id: str, action: str):
 
 @app.websocket("/ws/terminal")
 async def terminal_websocket(websocket: WebSocket):
+    token = websocket.query_params.get("token")
+    if token != SECRET_TOKEN:
+        await websocket.close(code=4003, reason="Unauthorized")
+        print("Rejected unauthorized WebSocket terminal connection attempt.")
+        return
+    
     await websocket.accept()
     print("WebSocket connection accepted from frontend.")
     
