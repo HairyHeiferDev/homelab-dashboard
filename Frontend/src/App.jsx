@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import TerminalView from './TerminalView';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -249,14 +250,7 @@ export default function App() {
         )}
 
         {activeTab === 'terminal' && (
-          <div className="bg-slate-950 border border-cyan-500/30 rounded-lg p-5 h-[550px] font-mono text-xs text-emerald-400 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)]">
-            <div className="text-slate-500 mb-2"># Xterm.js secure WebSocket PTY bridge initialized.</div>
-            <div className="text-slate-400">Type commands directly to host Linux Mint environment.</div>
-            <div className="mt-4 flex items-center gap-2">
-              <span className="text-cyan-400">root@homelab-mint:~#</span>
-              <span className="w-2 h-4 bg-emerald-400 animate-pulse"></span>
-            </div>
-          </div>
+          <TerminalView />
         )}
       </main>
     </div>

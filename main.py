@@ -1,13 +1,17 @@
 import uvicorn
 import psutil
 import docker
+import pty
+import subprocess
+import asyncio
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from fastapi import WebSocket, WebSocketDisconnect
 
 app = FastAPI(title="Homelab Dashboard")
 
-# allows fast api to talk to port i think 5173 
+# allows fast api to talk to port 5173 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,10 +29,9 @@ def get_system_metrics():
         "cpu": cpu_usage,
         "ram": {
             "used": round(memory.used / (1024**3), 1),
-            "total":round(memory.total / (1024**3),  1),
+            "total": round(memory.total / (1024**3), 1),
             "percent": memory.percent
         },
-        
         "disk": {
             "percent": disk.percent
         }
@@ -44,14 +47,13 @@ def list_containers():
     if not docker_client:
         return []
     try:
-        # Fetch all containers (running and stopped)
         containers = docker_client.containers.list(all=True)
         return [
             {
                 "id": c.short_id,
                 "name": c.name,
                 "image": c.image.tags[0] if c.image.tags else "custom-build",
-                "status": c.status, # 'running', 'exited', etc.
+                "status": c.status,
                 "created": c.attrs['Created']
             }
             for c in containers
@@ -76,3 +78,56 @@ def control_container(container_id: str, action: str):
         return {"success": True, "container": container.name, "action": action}
     except Exception as e:
         return {"error": str(e)}
+
+@app.websocket("/ws/terminal")
+async def terminal_websocket(websocket: WebSocket):
+    await websocket.accept()
+    
+    master_fd, slave_fd = pty.openpty()
+    
+    try:
+        proc = subprocess.Popen(
+            ["/bin/bash"],
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            preexec_fn=os.setsid
+        )
+    except Exception:
+        os.close(master_fd)
+        os.close(slave_fd)
+        await websocket.close()
+        return
+
+    os.close(slave_fd)
+    loop = asyncio.get_running_loop()
+
+    async def read_from_pty():
+        try:
+            while True:
+                data = await loop.run_in_executor(None, os.read, master_fd, 1024)
+                if not data:
+                    break
+                await websocket.send_text(data.decode('utf-8', errors='ignore'))
+        except Exception:
+            pass
+
+    read_task = asyncio.create_task(read_from_pty())
+
+    try:
+        while True:
+            data = await websocket.receive_text()
+            await loop.run_in_executor(None, os.write, master_fd, data.encode('utf-8'))
+    except WebSocketDisconnect:
+        pass
+    finally:
+        read_task.cancel()
+        try:
+            proc.terminate()
+            proc.wait(timeout=1)
+        except Exception:
+            pass
+        try:
+            os.close(master_fd)
+        except Exception:
+            pass
