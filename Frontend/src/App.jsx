@@ -7,6 +7,40 @@ export default function App() {
     ram: { used: 0, total: 16, percent: 0 },
     disk: { percent: 0 }
   });
+  const [containers, setContainers] = useState([]);
+  const [loadingAction, setLoadingAction] = useState(null);
+
+  const fetchContainers = async () => {
+    try {
+      const res = await fetch('http://localhost:8000/api/docker/containers');
+      const data = await res.json();
+      if (Array.isArray(data)) setContainers(data);
+    } catch (err) {
+      console.error("Failed to fetch containers:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'containers') {
+      fetchContainers();
+      const interval = setInterval(fetchContainers, 4000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab]);
+
+  const handleContainerAction = async (id, action) => {
+    setLoadingAction(id);
+    try {
+      await fetch(`http://localhost:8000/api/docker/containers/${id}/${action}`, {
+        method: 'POST',
+      });
+      await fetchContainers();
+    } catch (err) {
+      console.error(`Failed to ${action} container:`, err);
+    } finally {
+      setLoadingAction(null);
+    }
+  };
 
   // Fetch live metrics every 2 seconds
   useEffect(() => {
@@ -136,8 +170,81 @@ export default function App() {
         )}
 
         {activeTab === 'containers' && (
-          <div className="bg-slate-900/50 border border-cyan-500/20 rounded-lg p-6 backdrop-blur">
-            <p className="text-slate-400 text-sm">Docker container fleet telemetry table will mount here...</p>
+          <div className="bg-slate-900/50 border border-cyan-500/20 rounded-lg p-6 backdrop-blur shadow-lg">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xs text-slate-400 uppercase tracking-widest">Active Container Fleet</h3>
+              <button 
+                onClick={fetchContainers}
+                className="text-xs bg-cyan-950/60 border border-cyan-500/40 px-3 py-1.5 rounded text-cyan-300 hover:bg-cyan-500/20 transition-all"
+              >
+                REFRESH FLEET
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-cyan-500/20 text-slate-400 tracking-wider">
+                    <th className="pb-3 font-semibold">STATUS</th>
+                    <th className="pb-3 font-semibold">CONTAINER NAME</th>
+                    <th className="pb-3 font-semibold">IMAGE</th>
+                    <th className="pb-3 font-semibold text-right">COMMANDS</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {containers.length === 0 ? (
+                    <tr>
+                      <td colSpan="4" className="py-6 text-center text-slate-500">Scanning Docker socket or zero containers found...</td>
+                    </tr>
+                  ) : (
+                    containers.map((c) => (
+                      <tr key={c.id} className="hover:bg-slate-800/30 transition-colors">
+                        <td className="py-4">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider ${
+                            c.status === 'running' 
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-[0_0_10px_rgba(52,211,153,0.1)]' 
+                              : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${c.status === 'running' ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`}></span>
+                            {c.status}
+                          </span>
+                        </td>
+                        <td className="py-4 text-white font-bold tracking-wide">{c.name}</td>
+                        <td className="py-4 text-slate-400 font-mono">{c.image}</td>
+                        <td className="py-4 text-right space-x-2">
+                          {c.status === 'running' ? (
+                            <>
+                              <button 
+                                disabled={loadingAction === c.id}
+                                onClick={() => handleContainerAction(c.id, 'restart')}
+                                className="px-3 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded hover:bg-amber-500/20 transition-all disabled:opacity-50"
+                              >
+                                RESTART
+                              </button>
+                              <button 
+                                disabled={loadingAction === c.id}
+                                onClick={() => handleContainerAction(c.id, 'stop')}
+                                className="px-3 py-1 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded hover:bg-rose-500/20 transition-all disabled:opacity-50"
+                              >
+                                STOP
+                              </button>
+                            </>
+                          ) : (
+                            <button 
+                              disabled={loadingAction === c.id}
+                              onClick={() => handleContainerAction(c.id, 'start')}
+                              className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded hover:bg-emerald-500/20 transition-all disabled:opacity-50"
+                            >
+                              START
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
