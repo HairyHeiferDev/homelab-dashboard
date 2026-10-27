@@ -66,7 +66,7 @@ export default function App() {
         <div>
           <div className="flex items-center space-x-3 mb-10">
             <div className="w-3 h-3 bg-cyan-400 rounded-full animate-pulse shadow-[0_0_12px_#22d3ee]"></div>
-            <span className="text-base font-bold tracking-widest text-white">HOMELAB//OS</span>
+            <span className="text-base font-bold tracking-widest text-white">HOMELAB</span>
           </div>
           
           <nav className="space-y-2">
@@ -78,7 +78,7 @@ export default function App() {
                   : 'hover:bg-slate-800/60 text-slate-400 border border-transparent'
               }`}
             >
-              &gt; SYSTEM_METRICS
+              &gt; SYSTEM METRICS
             </button>
             <button 
               onClick={() => setActiveTab('containers')}
@@ -88,7 +88,7 @@ export default function App() {
                   : 'hover:bg-slate-800/60 text-slate-400 border border-transparent'
               }`}
             >
-              &gt; DOCKER_FLEET
+              &gt; SERVER SERVICES STATUS
             </button>
             <button 
               onClick={() => setActiveTab('terminal')}
@@ -98,7 +98,7 @@ export default function App() {
                   : 'hover:bg-slate-800/60 text-slate-400 border border-transparent'
               }`}
             >
-              &gt; PTY_TERMINAL
+              &gt; TERMINAL
             </button>
           </nav>
         </div>
