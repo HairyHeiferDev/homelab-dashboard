@@ -444,27 +444,39 @@ export default function App() {
                     </tr>
                   ) : (
                     containers.map((c) => {
-                      const name = c.name.toLowerCase();
-                      let port = c.port;
-                      let subPath = '';
+                      const getServiceUrl = (container) => {
+                        const name = container.name.toLowerCase();
+                        
+                        if (name.includes('bunker') || name.includes('webbunker')) {
+                          return 'http://192.168.2.12:8081/';
+                        }
+                        if (name.includes('qbit')) {
+                          return 'http://localhost:8080/';
+                        }
+                        if (name.includes('prowlarr') || name.includes('prowellr')) {
+                          return 'http://localhost:9696/';
+                        }
+                        if (name.includes('pihole') || name.includes('pi-hole')) {
+                          return 'http://homelab.local/admin/';
+                        }
+                        if (name.includes('jellyfin')) {
+                          return 'http://homelab.local:8096/';
+                        }
+                        if (name.includes('sonarr')) {
+                          return 'http://homelab.local:8989/';
+                        }
+                        if (name.includes('radarr')) {
+                          return 'http://homelab.local:7878/';
+                        }
+                        
+                        if (container.port) {
+                          return `http://homelab.local:${container.port}/`;
+                        }
+                        
+                        return null;
+                      };
 
-                      // Fallback standard ports if Docker didn't expose one explicitly
-                      if (!port) {
-                        if (name.includes('pihole') || name.includes('pi-hole')) port = '80';
-                        else if (name.includes('qbit')) port = '8080';
-                        else if (name.includes('prowlarr') || name.includes('prowellr')) port = '9696';
-                        else if (name.includes('bunker')) port = '80';
-                        else if (name.includes('jellyfin')) port = '8096';
-                        else if (name.includes('sonarr')) port = '8989';
-                        else if (name.includes('radarr')) port = '7878';
-                      }
-
-                      // Specific subpaths
-                      if (name.includes('pihole') || name.includes('pi-hole')) {
-                        subPath = '/admin/';
-                      }
-
-                      const serviceUrl = port ? `http://homelab.local:${port}${subPath}` : null;
+                      const serviceUrl = getServiceUrl(c);
 
                       return (
                         <tr key={c.id} className="hover:bg-slate-800/30 transition-colors">
